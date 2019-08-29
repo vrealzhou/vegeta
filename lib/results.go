@@ -7,12 +7,14 @@ import (
 	"encoding/csv"
 	"encoding/gob"
 	"io"
+	"reflect"
 	"sort"
 	"strconv"
 	"time"
 
 	"github.com/mailru/easyjson/jlexer"
 	jwriter "github.com/mailru/easyjson/jwriter"
+	"github.com/tsenart/vegeta/graphql"
 )
 
 func init() {
@@ -21,15 +23,17 @@ func init() {
 
 // Result contains the results of a single Target hit.
 type Result struct {
-	Attack    string        `json:"attack"`
-	Seq       uint64        `json:"seq"`
-	Code      uint16        `json:"code"`
-	Timestamp time.Time     `json:"timestamp"`
-	Latency   time.Duration `json:"latency"`
-	BytesOut  uint64        `json:"bytes_out"`
-	BytesIn   uint64        `json:"bytes_in"`
-	Error     string        `json:"error"`
-	Body      []byte        `json:"body"`
+	Attack          string             `json:"attack"`
+	Seq             uint64             `json:"seq"`
+	Code            uint16             `json:"code"`
+	Timestamp       time.Time          `json:"timestamp"`
+	Latency         time.Duration      `json:"latency"`
+	BytesOut        uint64             `json:"bytes_out"`
+	BytesIn         uint64             `json:"bytes_in"`
+	Error           string             `json:"error"`
+	Body            []byte             `json:"body"`
+	GQLErrors       []graphql.GQLError `json:"gqlErr"`
+	TotalFetchCount uint64             `json:"totalFetchCount"`
 }
 
 // End returns the time at which a Result ended.
@@ -45,7 +49,8 @@ func (r Result) Equal(other Result) bool {
 		r.BytesIn == other.BytesIn &&
 		r.BytesOut == other.BytesOut &&
 		r.Error == other.Error &&
-		bytes.Equal(r.Body, other.Body)
+		bytes.Equal(r.Body, other.Body) &&
+		reflect.DeepEqual(r.GQLErrors, other.GQLErrors)
 }
 
 // Results is a slice of Result type elements.
