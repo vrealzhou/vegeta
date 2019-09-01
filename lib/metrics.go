@@ -59,11 +59,11 @@ func (m *Metrics) Add(r *Result) {
 			}
 			m.StatusCodes[err.Code]++
 			if _, ok := m.errors[err.Message]; !ok {
-				m.errors[r.Error] = struct{}{}
+				m.errors[err.Message] = struct{}{}
 				m.Errors = append(m.Errors, err.Message)
 			}
 		}
-		m.success = m.success + r.TotalFetchCount - sourceErrs
+		m.success = m.success + r.TotalFetchCount - uint64(len(r.GQLErrors))
 	} else {
 		m.Requests++
 		m.StatusCodes[strconv.Itoa(int(r.Code))]++
