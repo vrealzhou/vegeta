@@ -50,8 +50,27 @@ type Metrics struct {
 func (m *Metrics) Add(r *Result) {
 	m.init()
 
-	m.Requests++
-	m.StatusCodes[strconv.Itoa(int(r.Code))]++
+	if r.TotalFetchCount > 0 {
+		m.Requests += r.TotalFetchCount
+		var sourceErrs uint64 = 0
+		for _, err := range r.GQLErrors {
+			if err.SourceErr {
+				sourceErrs++
+			}
+			m.StatusCodes[err.Code]++
+			if _, ok := m.errors[err.Message]; !ok {
+				m.errors[err.Message] = struct{}{}
+				m.Errors = append(m.Errors, err.Message)
+			}
+		}
+		m.success = m.success + r.TotalFetchCount - uint64(len(r.GQLErrors))
+	} else {
+		m.Requests++
+		m.StatusCodes[strconv.Itoa(int(r.Code))]++
+		if r.Code >= 200 && r.Code < 400 {
+			m.success++
+		}
+	}
 	m.BytesOut.Total += r.BytesOut
 	m.BytesIn.Total += r.BytesIn
 
@@ -67,10 +86,6 @@ func (m *Metrics) Add(r *Result) {
 
 	if end := r.End(); end.After(m.End) {
 		m.End = end
-	}
-
-	if r.Code >= 200 && r.Code < 400 {
-		m.success++
 	}
 
 	if r.Error != "" {

@@ -52,6 +52,11 @@ func attackCmd() command {
 	fs.Var(&opts.laddr, "laddr", "Local IP address")
 	fs.BoolVar(&opts.keepalive, "keepalive", true, "Use persistent connections")
 	fs.StringVar(&opts.unixSocket, "unix-socket", "", "Connect over a unix socket. This overrides the host address in target URLs")
+	fs.StringVar(&opts.gqlTotalFetch, "gql-total-fetch", "extensions.totalFetchCount", "GraphQL result json path for total fetch count")
+	fs.StringVar(&opts.gqlErrorCode, "gql-error-code", "httpStatusCode", "GraphQL result error extension key for error code")
+	fs.StringVar(&opts.gqlFromSource, "gql-from-source", "fromSource", "GraphQL result error extension key indicate if the error is from data source")
+	fs.StringVar(&opts.gqlURLPath, "gql-url-path", "/graphql/query", "GraphQL URL path, for check if the query is GQL query")
+
 	systemSpecificFlags(fs, opts)
 
 	return command{fs, func(args []string) error {
@@ -67,31 +72,35 @@ var (
 
 // attackOpts aggregates the attack function command options
 type attackOpts struct {
-	name        string
-	targetsf    string
-	format      string
-	outputf     string
-	bodyf       string
-	certf       string
-	keyf        string
-	rootCerts   csl
-	http2       bool
-	h2c         bool
-	insecure    bool
-	lazy        bool
-	duration    time.Duration
-	timeout     time.Duration
-	rate        vegeta.Rate
-	workers     uint64
-	maxWorkers  uint64
-	connections int
-	redirects   int
-	maxBody     int64
-	headers     headers
-	laddr       localAddr
-	keepalive   bool
-	resolvers   csl
-	unixSocket  string
+	name          string
+	targetsf      string
+	format        string
+	outputf       string
+	bodyf         string
+	certf         string
+	keyf          string
+	rootCerts     csl
+	http2         bool
+	h2c           bool
+	insecure      bool
+	lazy          bool
+	duration      time.Duration
+	timeout       time.Duration
+	rate          vegeta.Rate
+	workers       uint64
+	maxWorkers    uint64
+	connections   int
+	redirects     int
+	maxBody       int64
+	headers       headers
+	laddr         localAddr
+	keepalive     bool
+	resolvers     csl
+	unixSocket    string
+	gqlErrorCode  string
+	gqlFromSource string
+	gqlTotalFetch string
+	gqlURLPath    string
 }
 
 // attack validates the attack arguments, sets up the
@@ -177,6 +186,7 @@ func attack(opts *attackOpts) (err error) {
 		vegeta.H2C(opts.h2c),
 		vegeta.MaxBody(opts.maxBody),
 		vegeta.UnixSocket(opts.unixSocket),
+		vegeta.GraphQL(opts.gqlURLPath, opts.gqlTotalFetch, opts.gqlErrorCode, opts.gqlFromSource),
 	)
 
 	res := atk.Attack(tr, opts.rate, opts.duration, opts.name)

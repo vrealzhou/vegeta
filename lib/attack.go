@@ -13,6 +13,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/tsenart/vegeta/graphql"
 	"golang.org/x/net/http2"
 )
 
@@ -28,6 +29,7 @@ type Attacker struct {
 	seqmu      sync.Mutex
 	seq        uint64
 	began      time.Time
+	gqlParser  *graphql.ResultParser
 }
 
 const (
@@ -224,6 +226,12 @@ func UnixSocket(socket string) func(*Attacker) {
 	}
 }
 
+func GraphQL(urlPath, totalFetchCount, errorCode, fromSource string) func(*Attacker) {
+	return func(a *Attacker) {
+		a.gqlParser = graphql.NewParser(urlPath, totalFetchCount, errorCode, fromSource)
+	}
+}
+
 // Client returns a functional option that allows you to bring your own http.Client
 func Client(c *http.Client) func(*Attacker) {
 	return func(a *Attacker) { a.client = *c }
@@ -347,21 +355,38 @@ func (a *Attacker) hit(tr Targeter, name string) *Result {
 	}
 	defer r.Body.Close()
 
-	body := io.Reader(r.Body)
-	if a.maxBody >= 0 {
-		body = io.LimitReader(r.Body, a.maxBody)
-	}
+	if a.gqlParser.IsGraphQL(tgt.URL) {
+		body := io.Reader(r.Body)
+		res.Body, err = ioutil.ReadAll(body)
+		if err != nil {
+			return &res
+		}
+		a.gqlParser.CheckResult(res.Body)
+		res.TotalFetchCount = a.gqlParser.TotalFetchCount()
+		res.GQLErrors = a.gqlParser.ParseErrors()
 
-	if res.Body, err = ioutil.ReadAll(body); err != nil {
-		return &res
-	} else if _, err = io.Copy(ioutil.Discard, r.Body); err != nil {
-		return &res
-	}
+		res.BytesIn = uint64(len(res.Body))
 
-	res.BytesIn = uint64(len(res.Body))
+		if req.ContentLength != -1 {
+			res.BytesOut = uint64(req.ContentLength)
+		}
+	} else {
+		body := io.Reader(r.Body)
+		if a.maxBody >= 0 {
+			body = io.LimitReader(r.Body, a.maxBody)
+		}
 
-	if req.ContentLength != -1 {
-		res.BytesOut = uint64(req.ContentLength)
+		if res.Body, err = ioutil.ReadAll(body); err != nil {
+			return &res
+		} else if _, err = io.Copy(ioutil.Discard, r.Body); err != nil {
+			return &res
+		}
+
+		res.BytesIn = uint64(len(res.Body))
+
+		if req.ContentLength != -1 {
+			res.BytesOut = uint64(req.ContentLength)
+		}
 	}
 
 	if res.Code = uint16(r.StatusCode); res.Code < 200 || res.Code >= 400 {
